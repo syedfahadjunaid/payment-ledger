@@ -1,0 +1,77 @@
+# Local stack: Postgres, the simulated payment provider and the ledger service.
+#
+#   docker compose up -d --build      -> everything (API on http://localhost:8480)
+#   docker compose up -d postgres     -> only the database (run the services from your IDE)
+#
+# All ports are bound to 127.0.0.1 so nothing is reachable from your network.
+# Secrets come from .env (copy .env.example -> .env). Nothing has a default password.
+
+name: payment-ledger
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: payments
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?copy .env.example to .env}
+      # Used once by infra/postgres/init/01-init.sh to create the owner and app logins
+      LEDGER_OWNER_DB_PASSWORD: ${LEDGER_OWNER_DB_PASSWORD:?copy .env.example to .env}
+      LEDGER_APP_DB_PASSWORD: ${LEDGER_APP_DB_PASSWORD:?copy .env.example to .env}
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-35432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # -h 127.0.0.1 forces TCP, so this only passes once the init script has finished
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d payments"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  provider-sim:
+    build: ./services/provider-sim
+    environment:
+      PROVIDER_API_KEY: ${PROVIDER_API_KEY:?copy .env.example to .env}
+      PROVIDER_WEBHOOK_SECRET: ${PROVIDER_WEBHOOK_SECRET:?copy .env.example to .env}
+      SIM_WEBHOOK_URL: http://ledger-service:8080/webhooks/provider
+    ports:
+      - "127.0.0.1:${PROVIDER_HOST_PORT:-8481}:8080"
+    healthcheck:
+      # The JRE image has no curl; bash can speak HTTP over /dev/tcp to the management port
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8081 && printf 'GET /actuator/health/readiness HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '\"UP\"' <&3"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+
+  ledger-service:
+    build: ./services/ledger-service
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/payments
+      LEDGER_OWNER_DB_PASSWORD: ${LEDGER_OWNER_DB_PASSWORD}
+      LEDGER_APP_DB_PASSWORD: ${LEDGER_APP_DB_PASSWORD}
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:?copy .env.example to .env}
+      PROVIDER_BASE_URL: http://provider-sim:8080
+      PROVIDER_API_KEY: ${PROVIDER_API_KEY}
+      PROVIDER_WEBHOOK_SECRET: ${PROVIDER_WEBHOOK_SECRET}
+    ports:
+      - "127.0.0.1:${LEDGER_HOST_PORT:-8480}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      provider-sim:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8081 && printf 'GET /actuator/health/readiness HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '\"UP\"' <&3"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  postgres-data:

@@ -1,0 +1,21 @@
+# Secrets: copy .env.example to .env and keep it local
+.env
+
+# Build output
+target/
+.mvn/wrapper/maven-wrapper.jar
+
+# IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.classpath
+.project
+.settings/
+.factorypath
+
+# OS noise
+.DS_Store
+Thumbs.db

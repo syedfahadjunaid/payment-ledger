@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: provider-sim
+  config:
+    import:
+      - optional:file:.env[.properties]
+      - optional:file:../../.env[.properties]
+  threads:
+    virtual:
+      enabled: true
+  mvc:
+    problemdetails:
+      enabled: true
+
+server:
+  port: 8080
+
+management:
+  server:
+    port: 8081
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+sim:
+  # The API key the ledger must send (Authorization: Bearer ...) and the webhook signing secret
+  api-key: ${PROVIDER_API_KEY:}
+  webhook-secret: ${PROVIDER_WEBHOOK_SECRET:}
+  webhook-url: ${SIM_WEBHOOK_URL:http://localhost:${LEDGER_HOST_PORT:8480}/webhooks/provider}
+  # How long a charge or refund stays "processing" before it succeeds or fails
+  settle-delay: 1500ms
+  # Failed webhook deliveries are retried with exponential backoff (1 s, 2 s, 4 s, ...)
+  max-delivery-attempts: 6

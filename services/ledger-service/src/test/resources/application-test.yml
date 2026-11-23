@@ -1,0 +1,13 @@
+# Test profile (activated by @IntegrationTest). The database comes from Testcontainers.
+ledger:
+  admin-token: test-admin-token-0123456789abcdef0123456789
+  # Tests call the jobs directly instead of waiting for a schedule
+  scheduling-enabled: false
+  provider:
+    base-url: http://127.0.0.1:9    # never called: tests use FakePaymentProvider
+    api-key: test-provider-key
+    webhook-secret: test-webhook-secret-0123456789abcdef0123
+  saga:
+    # The recovery job may pick up any unfinished payment immediately
+    resubmit-after: 0s
+    poll-after: 0s

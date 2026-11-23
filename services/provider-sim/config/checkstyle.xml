@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+        "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+        "https://checkstyle.org/dtds/configuration_1_3.dtd">
+<!--
+  A small, pragmatic rule set: things that are almost always a bug or noise.
+  Formatting is left to the IDE; the compiler adds -Xlint:all -Werror on top (see pom.xml).
+-->
+<module name="Checker">
+    <property name="charset" value="UTF-8"/>
+    <property name="severity" value="error"/>
+    <property name="fileExtensions" value="java"/>
+
+    <module name="FileTabCharacter"/>
+    <module name="NewlineAtEndOfFile"/>
+    <module name="LineLength">
+        <property name="max" value="130"/>
+        <property name="ignorePattern" value="^(package|import) .*$"/>
+    </module>
+
+    <module name="TreeWalker">
+        <!-- imports -->
+        <module name="AvoidStarImport"/>
+        <module name="RedundantImport"/>
+        <module name="UnusedImports"/>
+        <module name="IllegalImport"/>
+
+        <!-- likely bugs -->
+        <module name="EqualsHashCode"/>
+        <module name="CovariantEquals"/>
+        <module name="StringLiteralEquality"/>
+        <module name="EmptyCatchBlock"/>
+        <module name="EmptyStatement"/>
+        <module name="FallThrough"/>
+        <module name="DefaultComesLast"/>
+        <module name="InnerAssignment"/>
+        <module name="SimplifyBooleanExpression"/>
+        <module name="SimplifyBooleanReturn"/>
+        <module name="MissingSwitchDefault">
+            <!-- switch expressions over enums are checked for exhaustiveness by the compiler -->
+            <property name="severity" value="ignore"/>
+        </module>
+
+        <!-- readability -->
+        <module name="NeedBraces">
+            <property name="allowSingleLineStatement" value="true"/>
+        </module>
+        <module name="OneStatementPerLine"/>
+        <module name="MultipleVariableDeclarations"/>
+        <module name="ModifierOrder"/>
+        <module name="UpperEll"/>
+        <module name="ArrayTypeStyle"/>
+
+        <!-- naming -->
+        <module name="PackageName"/>
+        <module name="TypeName"/>
+        <module name="MethodName"/>
+        <module name="ConstantName">
+            <!-- "private static final Logger log" is the common SLF4J idiom -->
+            <property name="format" value="^log$|^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$"/>
+        </module>
+        <module name="MemberName"/>
+        <module name="ParameterName"/>
+        <module name="LocalVariableName"/>
+    </module>
+</module>

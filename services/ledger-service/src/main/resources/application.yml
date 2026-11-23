@@ -1,0 +1,85 @@
+spring:
+  application:
+    name: ledger-service
+  config:
+    # Lets you run the app from your IDE using the same .env file Docker Compose uses.
+    import:
+      - optional:file:.env[.properties]
+      - optional:file:../../.env[.properties]
+  threads:
+    virtual:
+      enabled: true          # Java 21+ virtual threads: cheap blocking I/O per request
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:${POSTGRES_HOST_PORT:35432}/payments}
+    # The running service uses the least-privileged login (no UPDATE/DELETE on ledger history)
+    username: ${DB_APP_USERNAME:ledger_app}
+    password: ${LEDGER_APP_DB_PASSWORD:}
+    hikari:
+      schema: ledger
+      # Waiting on a row lock fails after 5 s instead of hanging a request forever
+      connection-init-sql: SET lock_timeout = '5s'
+  flyway:
+    # Migrations run as the schema owner; the app login can't run DDL at all
+    user: ${DB_OWNER_USERNAME:ledger_owner}
+    password: ${LEDGER_OWNER_DB_PASSWORD:}
+    schemas: ledger
+    default-schema: ledger
+    placeholders:
+      appRole: ${DB_APP_USERNAME:ledger_app}
+  jpa:
+    open-in-view: false      # no lazy-loading surprises in controllers
+    hibernate:
+      ddl-auto: validate     # Flyway owns the schema; Hibernate only checks it matches
+    properties:
+      hibernate:
+        default_schema: ledger
+  jackson:
+    deserialization:
+      # {"amountMinor": 12.5} is a 400 error, never silently 12. Money is whole minor units.
+      accept-float-as-int: false
+  mvc:
+    problemdetails:
+      enabled: true          # RFC 9457 error bodies
+
+server:
+  port: 8080
+  error:
+    include-stacktrace: never
+    include-message: never
+
+management:
+  server:
+    port: 8081               # health/metrics on a separate port that is never published
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+ledger:
+  # Bearer token for /admin/** (operators). Required, at least 32 characters.
+  admin-token: ${ADMIN_API_TOKEN:}
+  supported-currencies: [EUR, USD, GBP, JPY]
+  # Largest single amount the API accepts, in minor units (1,000,000.00 in a 2-decimal currency)
+  max-amount-minor: 100000000
+  scheduling-enabled: true
+  provider:
+    base-url: ${PROVIDER_BASE_URL:http://localhost:${PROVIDER_HOST_PORT:8481}}
+    api-key: ${PROVIDER_API_KEY:}
+    webhook-secret: ${PROVIDER_WEBHOOK_SECRET:}
+    # Webhooks signed more than this long ago are rejected (replay protection)
+    webhook-tolerance: 5m
+    connect-timeout: 2s
+    read-timeout: 5s
+  saga:
+    recovery-interval: PT15S # how often the recovery job looks for stuck payments and refunds
+    resubmit-after: 30s      # CREATED for this long: the provider call never happened, retry it
+    poll-after: 2m           # PROCESSING for this long: maybe a webhook got lost, ask the provider
+  reconciliation:
+    cron: "0 15 0 * * *"     # 00:15 every day: reconcile the previous business day
+    zone: UTC
+  idempotency:
+    retention: 24h           # clients may retry with the same key for this long
